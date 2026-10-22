@@ -30,126 +30,185 @@ def toggle_zone(zone_name):
     else:
         st.session_state.selected_zones.append(zone_name)
 
-# Расширенная база знаний по биомеханике
-BIOMECHANICS_KNOWLEDGE_BASE = {
-    "Невролог": {
-        "summary": "Развитие синдрома связано с нарушением регуляции нервно-мышечной передачи, локальным миофасциальным спазмом или иррадиацией боли по ходу периферических нервных стволов.",
-        "causes": [
-            "Длительное статическое напряжение (работа за ПК, неудобная поза)",
-            "Компрессия или раздражение нервных корешков спинного мозга",
-            "Рефлекторный мышечный спазм в ответ на стресс или переохлаждение",
-            "Изменение тонуса церебральных или периферических сосудов"
-        ],
-        "anatomy": "Вовлечены **трапециевидная, ременная мышцы шеи**, **затылочные нервы (n. occipitalis)** или корешки спинномозговых нервов. Наблюдается гипертонус триггерных точек.",
-        "actions": [
-            "Ограничить резкие движения и высокие осевые нагрузки",
-            "Обеспечить эргономичное положение тела при отдыхе и работе",
-            "Вести дневник интенсивности и характера боли",
-            "Запланировать очный осмотр невролога для проверки рефлексов"
-        ]
-    },
-    "Травматолог-ортопед": {
-        "summary": "Симптоматика указывает на механическое перенапряжение связочно-суставного аппарата, нарушение биомеханической оси нагрузки или микротравматизацию тканевых структур.",
-        "causes": [
-            "Перегрузка суставно-связочного аппарата при физических упражнениях",
-            "Дегенеративно-дистрофические изменения суставных поверхностей",
-            "Микронадрывы сухожилий или растяжение связок",
-            "Нарушение осанки и паттернов ходьбы/движения"
-        ],
-        "anatomy": "Затронуты **суставные капсулы**, **связочные комплексы** и **межпозвоночные/периферические суставы**. Выявлено ограничение амплитуды движения.",
-        "actions": [
-            "Обеспечить функциональный покой пораженной области",
-            "Исключить осевые и скручивающие нагрузки",
-            "При необходимости использовать щадящую фиксацию/ортезирование",
-            "Пройти инструментальную диагностику (рентгенография / МРТ)"
-        ]
-    },
-    "Кардиолог / Терапевт": {
-        "summary": "Картина может отражать изменения системной гемодинамики, реактивность сосудистого тонуса или отраженные висцеральные боли.",
-        "causes": [
-            "Колебания артериального давления (гипер- или гипотоническая реакция)",
-            "Вегетативная дисфункция сосудистого тонуса",
-            "Межреберная невралгия или отраженный мышечный синдром",
-            "Психоэмоциональное перенапряжение"
-        ],
-        "anatomy": "Рефлекторный отклик **межреберных нервных сплетений**, **сосудистого русла** и мышечного каркаса грудной клетки.",
-        "actions": [
-            "Измерить и зафиксировать артериальное давление и пульс",
-            "Исключить интенсивные физические нагрузки и стрессовые факторы",
-            "Обеспечить приток свежего воздуха и покой",
-            "Обратиться к терапевту или кардиологу для ЭКГ-диагностики"
-        ]
-    },
-    "Терапевт / Общий специалист": {
-        "summary": "Симптомокомплекс требует первичной дифференциальной диагностики для уточнения характера патологического процесса.",
-        "causes": [
-            "Общесоматические и воспалительные реакции",
-            "Переутомление и физическое перенапряжение",
-            "Системные изменения тонуса мышц и фасций"
-        ],
-        "anatomy": "Вовлечение **поверхностных фасциальных футляров** и системных рефлекторных дуг.",
-        "actions": [
-            "Зафиксировать точное время и обстоятельства появления симптомов",
-            "Избегать самолечения до консультации со специалистом",
-            "Пройти первичный осмотр и сдать базовые анализы крови"
-        ]
-    }
-}
+# --- ФУНКЦИЯ ПРОВЕРКИ ПРОТИВОРЕЧИЙ (КРОСС-ВАЛИДАЦИЯ ВВОДА) ---
+def validate_input_consistency(selected_zones, user_text, file_text=""):
+    text_lower = (user_text + " " + file_text).lower().strip()
+    if not text_lower:
+        return True, ""
 
-def generate_detailed_analysis(spec, urgency, zones_str, flags_str, user_text):
-    info = BIOMECHANICS_KNOWLEDGE_BASE.get(spec, BIOMECHANICS_KNOWLEDGE_BASE["Терапевт / Общий специалист"])
-    
-    causes_list = "\n".join([f"  * {c}" for c in info['causes']])
-    actions_list = "\n".join([f"  * {act}" for act in info['actions']])
-    
-    # Дополнительный анализ введённого текста
-    text_insight = ""
+    zone_keywords = {
+        "head_neck": ["голова", "головы", "висок", "виске", "затылок", "глаз", "ухо", "макушка", "шея", "шею", "шейный"],
+        "upper_limbs": ["плечо", "плече", "рука", "руке", "руки", "локоть", "кисть", "предплечье"],
+        "chest": ["грудь", "грудная", "межреберная", "грудина", "сердце"],
+        "back_pelvis": ["поясница", "пояснице", "спина", "спине", "крестец", "таз", "ягодица", "бедро"],
+        "lower_limbs": ["нога", "ноге", "ноги", "колено", "колене", "стопа", "голень", "пятка", "икра", "икроножная"]
+    }
+
+    selected_categories = set()
+    for z in selected_zones:
+        if "Голова" in z or "Шея" in z:
+            selected_categories.add("head_neck")
+        elif "Плечевой" in z or "Руки" in z:
+            selected_categories.add("upper_limbs")
+        elif "Грудной" in z or "Живот" in z:
+            selected_categories.add("chest")
+        elif "Поясница" in z or "Таз" in z:
+            selected_categories.add("back_pelvis")
+        elif "Коленный" in z or "Ноги" in z or "Голеностоп" in z:
+            selected_categories.add("lower_limbs")
+
+    text_categories = set()
+    for cat, keywords in zone_keywords.items():
+        if any(kw in text_lower for kw in keywords):
+            text_categories.add(cat)
+
+    if text_categories and selected_categories and not selected_categories.intersection(text_categories):
+        cat_names = {
+            "head_neck": "Голова / Шея",
+            "upper_limbs": "Руки / Плечи",
+            "chest": "Грудная клетка",
+            "back_pelvis": "Поясница / Таз",
+            "lower_limbs": "Ноги / Нижние конечности"
+        }
+        
+        text_found = ", ".join([cat_names[c] for c in text_categories])
+        zones_found = ", ".join(selected_zones)
+        
+        err_msg = (
+            f"⚠️ **Обнаружено противоречие в данных!**\n\n"
+            f"Вы выбрали на карте/в списке зону: **«{zones_found}»**, "
+            f"но в текстовом описании упоминаются симптомы из области **«{text_found}»**.\n\n"
+            f"Пожалуйста, скорректируйте выбранную зону на карте или уточните текстовое описание."
+        )
+        return False, err_msg
+
+    return True, ""
+
+
+def generate_detailed_analysis(spec, urgency, zones_list, flags_str, user_text, file_text=""):
     text_lower = user_text.lower()
-    if "тян" in text_lower or "ноет" in text_lower:
-        text_insight = "Характер боли (тянущий/ноющий) типичен для хрононического мышечного гипертонуса или фасциального натяжения."
-    elif "стрел" in text_lower or "остр" in text_lower or "колет" in text_lower:
-        text_insight = "Острый/стреляющий характер боли указывает на возможное раздражение нервных окончаний или корешковый синдром."
-    elif "пульс" in text_lower:
-        text_insight = "Пульсирующий характер симптоматики часто связан с изменениями сосудистого тонуса и кровотока."
+    zones_formatted = ", ".join(zones_list) if zones_list else "Не указаны"
+
+    insights = []
+    causes = []
+    what_to_do = []
+    what_not_to_do = []
+
+    if "глаз" in text_lower or "дерг" in text_lower or "тик" in text_lower:
+        insights.append("• **Подергивание века / глаза (миокимия):** Связано с перевозбуждением лицевого или тройничного нерва на фоне переутомления, перенапряжения глазных мышц, стресса или нехватки магния.")
+        causes.append("Перенапряжение мышц глазного яблока, спазм мимической мускулатуры.")
+    
+    if "ухо" in text_lower or "уше" in text_lower or "шум" in text_lower:
+        insights.append("• **Боль / дискомфорт в ухе при здоровой барабанной перепонке:** Часто является отраженной болью (иррадиацией) из-за спазма глубоких мышц шеи, височно-нижнечелюстного сустава (ВНЧС) или затылочного нерва.")
+        causes.append("Иррадиация импульсов по ветвям тройничного/затылочного нервов.")
+
+    if "макушк" in text_lower or "затылок" in text_lower or "темя" in text_lower or "голов" in text_lower:
+        insights.append("• **Боль в макушке / темени / затылке (тензионный паттерн):** Напоминает 'шлем' или 'каску'. Обычно вызвана спазмом сухожильного шлема головы (апоневроза) и спазмом трапециевидной мышцы шеи.")
+        causes.append("Хронический спазм сухожильного шлема головы и мышц шеи.")
+
+    if "тян" in text_lower or "ноет" in text_lower or "туп" in text_lower:
+        insights.append("• **Ноющий/тянущий характер:** Типичный знак миофасциального синдрома — когда мышца из-за перегрузки не может расслабиться.")
+    elif "стрел" in text_lower or "остр" in text_lower or "коле" in text_lower or "резк" in text_lower:
+        insights.append("• **Простреливающий/острый характер:** Указывает на механическое раздражение нервных стволов или корешков.")
+
+    # Проверка на ЛОР и простудные симптомы / отит / синусит
+    if any(w in text_lower for w in ["ухо", "ухе", "отит", "простуд", "орви", "насморк", "заложил", "стреля", "горл", "синусит", "гайморит"]):
+        insights.append("• **ЛОР-патологии / воспалительный процесс:** Отечность слизистой, евстахиит или воспаление пазух на фоне ОРВИ/простуды, дающие отраженную боль в ухо или голову.")
+        causes.append("Воспаление ЛОР-органов (отит, евстахиит, синусит) или осложнения после простуды.")
+
+    # Проверка на стоматологический фактор / зубы / челюсть / ВНЧС
+    if any(w in text_lower for w in ["зуб", "зубы", "челюст", "внчс", "прикус", "жеван"]):
+        insights.append("• **Стоматологический фактор / ВНЧС:** Проблемы с зубами верхнего ряда или дисфункция челюстного сустава (корни зубов граничат с гайморовой пазухой).")
+        causes.append("Патология зубов или дисфункция ВНЧС, вызывающая иррадиацию боли в голову и ухо через ветви тройничного нерва.")
+    if not insights:
+        insights.append("• Зафиксирован мышечно-суставной дискомфорт в локализованной зоне, требующий снятия локального спазма и нормализации кинематики движений.")
+
+    causes.extend([
+        "Длительное статическое напряжение (работа за ПК, неудобная поза, наклон головы к смартфону)",
+        "Психоэмоциональное перенапряжение и стресс (вызывает непроизвольное сжатие челюстей и плеч)",
+        "Нарушение микроциркуляции и тонуса локальных сосудов или нервно-мышечной передачи"
+    ])
+
+    if spec == "Невролог":
+        what_to_do = [
+            "**Снизить зрительную и умственную нагрузку:** делать перерывы от экрана каждые 30-40 минут, дать глазам и голове отдых.",
+            "**Мягкий самомассаж:** легкими круговыми движениями помассировать затылок, плечи и сухожильный шлем (кожу головы).",
+            "**Нормализовать режим сна:** спать не менее 7-8 часов на удобной (желательно ортопедической) подушке.",
+            "**Контролировать гидратацию:** пить достаточное количество чистой воды для улучшения тонуса сосудов.",
+            "**Запланировать прием невролога:** для проверки нервной проводимости, чувствительности и рефлексов."
+        ]
+        what_not_to_do = [
+            "❌ **НЕ греть место боли горячими грелками или компрессами** (при невралгии или скрытом воспалении это может усилить отек нерва).",
+            "❌ **НЕ делать резких хрустов и скручиваний шеей** (опасно травматизацией межпозвоночных суставов и сосудов).",
+            "❌ **НЕ злоупотреблять обезболивающими без назначения врача** (это маскирует симптомы и может вызывать 'абузусную' головную боль).",
+            "❌ **НЕ игнорировать динамику:** если боль усиливается или добавляются новые симптомы, не откладывать визит к врачу."
+        ]
+    elif "Травматолог" in spec:
+        what_to_do = [
+            "**Обеспечить функциональный покой:** исключить физические нагрузки, поднятие тяжестей и резкие движения на пораженную зону.",
+            "**Щадящий двигательный режим:** при необходимости использовать эластичный бинт или фиксирующий ортез.",
+            "**Пройти диагностику:** сделать УЗИ или рентгенографию суставно-связочного аппарата по назначению врача."
+        ]
+        what_not_to_do = [
+            "❌ **НЕ выполнять упражнения через острую боль** (это увеличивает риск микронадрывов сухожилий и связок).",
+            "❌ **НЕ растирать разогревающими мазями при свежем отеке** (это усилит приток крови и увеличит воспаление)."
+        ]
     else:
-        text_insight = "Зафиксирован комплексный характер симптомов, требующий оценки кинематики движений."
+        what_to_do = [
+            "**Измерить артериальное давление и пульс:** зафиксировать показатели в течение дня.",
+            "**Обеспечить покой и приток свежего воздуха.**",
+            "**Пройти первичный осмотр терапевта:** для исключения системных факторов и назначения базовых анализов."
+        ]
+        what_not_to_do = [
+            "❌ **НЕ заниматься самолечением** до первичного осмотра врачом.",
+            "❌ **НЕ перегружать организм тяжелыми физическими тренировками.**"
+        ]
+
+    insights_str = "\n".join(insights)
+    causes_str = "\n".join([f"  * {c}" for c in causes])
+    todo_str = "\n".join([f"  1. {act}" for act in what_to_do])
+    not_todo_str = "\n".join([f"  * {nact}" for nact in what_not_to_do])
 
     return f"""
-### 1. 💡 Краткая суть простыми словами
-Локальный алгоритм **HBBA ML Engine** обработал жалобы для локализации: **{zones_str}**.
+### 💡 1. Что с вами происходит (Суть простыми словами)
+Локальный ML-алгоритм **HBBA** проанализировал ваши жалобы (`{user_text if user_text.strip() else 'Жалобы по выбранным зонам'}`) для зоны **{zones_formatted}**.
 
-{info['summary']}
+**Подробный разбор вашей симптоматики:**
+{insights_str}
 
----
-
-### 2. 🚨 Оценка опасных симптомов (Red Flags)
-* **Статус симптомов:** `{flags_str}`
-{"* ⚠️ **ВНИМАНИЕ:** Выявлены тревожные признаки! Настоятельно рекомендуется приоритетный осмотр врача для исключения острых состояний." if flags_str != "Отсутствуют" else "* ✅ Тревожных красных флагов по выбранным пунктам не зафиксировано."}
+**Почему это возникло (главные причины):**
+{causes_str}
 
 ---
 
-### 3. 🦴 Анатомический и биомеханический анализ
-* **Анатомические структуры:** {info['anatomy']}
-* **Анализ жалоб пациента:** {text_insight}
-* **Возможные провоцирующие факторы:**
-{causes_list}
+### 🚨 2. Оценка опасности (Красные флаги)
+* **Зафиксированные опасные признаки:** `{flags_str}`
+{"* ⚠️ **ВНИМАНИЕ:** Выявлены симптомы, требующие срочного обращения за медицинской помощью!" if flags_str != "Отсутствуют" else "* ✅ Жизненно опасных симптомов (красных флагов) не обнаружено. Состояние требует планового внимания."}
 
 ---
 
-### 4. ⚠️ Степень срочности и рекомендательный план
+### 🟢 3. Пошаговый план: Что нужно делать
 * **Рекомендуемый приоритет:** **{urgency}**
-* **Первоочередные шаги:**
-{actions_list}
+* **Ваши первоочередные шаги:**
+{todo_str}
 
 ---
 
-### 5. 👨‍⚕️️ Рекомендуемый профильный специалист
-Приоритетная первичная консультация: **{spec}**
+### 🛑 4. Категорически НЕ рекомендуется делать
+Чтобы не ухудшить состояние и не вызвать осложнений, соблюдайте ограничения:
+{not_todo_str}
+
+---
+
+### 👨‍⚕️ 5. К какому врачу обратиться
+* **Рекомендуемый профильный специалист:** **{spec}**
+* **Зачем нужен очный прием:** Врач проведет пальпацию триггерных точек, проверит неврологические рефлексы и при необходимости направит на дополнительную диагностику (МРТ/КТ/УЗИ).
 """
 
-def build_download_report(zones, user_text, red_flags, triage_result):
+def build_download_report(zones, user_text, red_flags, triage_result, file_text=""):
     zones_str = ", ".join(zones) if zones else "Не указаны"
     flags_str = ", ".join(red_flags) if red_flags else "Отсутствуют"
+    file_block = f"\nИЗВЛЕЧЕННЫЙ ТЕКСТ ИЗ ПРИКРЕПЛЕННОГО ФАЙЛА:\n{file_text}\n--------------------------------------------------" if file_text.strip() else ""
     
     report = f"""==================================================
 HBBA — HUMAN BODY BIOMECHANICS ANALYZER REPORT
@@ -162,6 +221,7 @@ HBBA — HUMAN BODY BIOMECHANICS ANALYZER REPORT
 
 ОПИСАНИЕ СИМПТОМОВ ОТ ПАЦИЕНТА:
 {user_text if user_text.strip() else 'Не указано'}
+{file_block}
 
 --------------------------------------------------
 РЕЗУЛЬТАТЫ ПЕРВИЧНОГО ТРИАЖА И АНАЛИЗА:
@@ -179,7 +239,7 @@ HBBA — HUMAN BODY BIOMECHANICS ANALYZER REPORT
 with st.sidebar:
     st.header("⚙️ Режим работы")
     st.success("🟢 Оффлайн ML-режим активен")
-    st.info("В проекте HBBA задействован локальный ИИ — классификатор на базе алгоритма Random Forest и векторизации TF-IDF. Модель обучена на подготовленном датасете биомеханических симптомов и в реальном времени определяет профиль врача, уровень риска и первичные рекомендации без обращения к сторонним облачным сервисам.")
+    st.info("В проекте HBBA задействован локальный ИИ — классификатор на базе алгоритма Random Forest и векторизации TF-IDF. Модель обучена на подготовленном датасете биомеханических симптомов и в реальном времени определяет профиль врача и уровень риска без обращения к сторонним облачным сервисам.")
     
     st.markdown("---")
     st.header("💡 О системе HBBA")
@@ -274,58 +334,82 @@ else:
 
     if st.button("🔍 Провести локальный ML-анализ", use_container_width=True):
         if user_input.strip() or st.session_state.selected_zones or uploaded_file is not None:
+            extracted_file_text = ""
+            if uploaded_file is not None:
+                if uploaded_file.type == "application/pdf":
+                    try:
+                        pdf_reader = pypdf.PdfReader(uploaded_file)
+                        for page in pdf_reader.pages:
+                            extracted_file_text += (page.extract_text() or "") + "\n"
+                    except Exception as pdf_err:
+                        st.warning(f"Не удалось прочитать PDF-файл: {pdf_err}")
+                elif uploaded_file.type == "text/plain":
+                    try:
+                        extracted_file_text = uploaded_file.read().decode("utf-8")
+                    except Exception as txt_err:
+                        st.warning(f"Не удалось прочитать TXT-файл: {txt_err}")
             
-            zones_str = ", ".join(st.session_state.selected_zones) if st.session_state.selected_zones else "Не указано"
+            # --- ПРОВЕРКА НЕПРОТИВОРЕЧИВОСТИ ВВОДА ---
+            is_valid, error_message = validate_input_consistency(st.session_state.selected_zones, user_input, extracted_file_text)
             
-            active_flags = []
-            if flag_numbness: active_flags.append("Онемение/слабость в конечностях")
-            if flag_dizziness: active_flags.append("Головокружение/тошнота")
-            if flag_acute: active_flags.append("Резкая острая боль")
-            flags_str = ", ".join(active_flags) if active_flags else "Отсутствуют"
-
-            # Извлечение текста из PDF
-            pdf_text = ""
-            if uploaded_file is not None and uploaded_file.type == "application/pdf":
-                try:
-                    pdf_reader = pypdf.PdfReader(uploaded_file)
-                    for page in pdf_reader.pages:
-                        pdf_text += page.extract_text() or ""
-                except Exception as pdf_err:
-                    st.warning(f"Не удалось прочитать PDF-файл: {pdf_err}")
-
-            with st.spinner("Локальный ML-модуль обрабатывает симптомы..."):
-                time.sleep(0.2)
+            if not is_valid:
+                st.error(error_message)
+            else:
+                zones_str = ", ".join(st.session_state.selected_zones) if st.session_state.selected_zones else "Не указано"
                 
-                # Запрос к обученной модели
-                input_query = f"{user_input} {zones_str} {pdf_text[:500]}"
-                pred_spec = ml_bundle["specialist_model"].predict([input_query])[0]
-                pred_urgency = ml_bundle["urgency_model"].predict([input_query])[0]
+                active_flags = []
+                if flag_numbness: active_flags.append("Онемение/слабость в конечностях")
+                if flag_dizziness: active_flags.append("Головокружение/тошнота")
+                if flag_acute: active_flags.append("Резкая острая боль")
+                flags_str = ", ".join(active_flags) if active_flags else "Отсутствуют"
 
-                if active_flags:
-                    pred_urgency = "🚨 ЭКСТРЕННО / ТРЕБУЕТСЯ СРОЧНОЕ ВНИМАНИЕ"
+                # Извлечение текста из PDF
+                pdf_text = ""
+                if uploaded_file is not None and uploaded_file.type == "application/pdf":
+                    try:
+                        pdf_reader = pypdf.PdfReader(uploaded_file)
+                        for page in pdf_reader.pages:
+                            pdf_text += page.extract_text() or ""
+                    except Exception as pdf_err:
+                        st.warning(f"Не удалось прочитать PDF-файл: {pdf_err}")
 
-                # Генерируем глубокий разбор
-                result_text = generate_detailed_analysis(
-                    pred_spec, pred_urgency, zones_str, flags_str, user_input
-                )
+                with st.spinner("Локальный ML-модуль обрабатывает симптомы..."):
+                    time.sleep(0.2)
+                    
+                    # Запрос к обученной модели
+                    input_query = f"{user_input} {extracted_file_text[:500]} {zones_str}"
+                    pred_spec = ml_bundle["specialist_model"].predict([input_query])[0]
+                    pred_urgency = ml_bundle["urgency_model"].predict([input_query])[0]
 
-                st.markdown("## 📊 Результаты автономного ML-триажа:")
-                st.success("Анализ завершен локально движком Scikit-Learn!")
-                st.markdown(result_text)
+                    if active_flags:
+                        pred_urgency = "🚨 ЭКСТРЕННО / ТРЕБУЕТСЯ СРОЧНОЕ ВНИМАНИЕ"
 
-                # Сохранение отчета на диск
-                full_report_text = build_download_report(
-                    st.session_state.selected_zones, user_input, active_flags, result_text
-                )
-                
-                folder_path = "reports"
-                os.makedirs(folder_path, exist_ok=True)
-                filename = f"HBBA_Triage_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-                full_file_path = os.path.join(folder_path, filename)
-                with open(full_file_path, "w", encoding="utf-8") as f:
-                    f.write(full_report_text)
+                    # Генерируем глубокий разбор
+                    result_text = generate_detailed_analysis(
+    pred_spec, pred_urgency, st.session_state.selected_zones, flags_str, user_input, extracted_file_text
+)
 
-                st.download_button("📥 Скачать отчет (.txt)", data=full_report_text, file_name=filename, mime="text/plain")
+                    st.markdown("## 📊 Результаты автономного ML-триажа:")
+                    st.success("Анализ завершен локально движком Scikit-Learn!")
+                    st.markdown(result_text)
+                    # Отображаем текст прикрепленного файла на экране, если он есть
+                    if extracted_file_text.strip():
+                       with st.expander("📄 Прочитанный текст из прикрепленного файла"):
+                           st.text(extracted_file_text)
+
+                    # Сохранение отчета на диск
+                    full_report_text = build_download_report(
+                        st.session_state.selected_zones, user_input, active_flags, result_text, extracted_file_text
+)
+                    
+                    folder_path = "reports"
+                    os.makedirs(folder_path, exist_ok=True)
+                    filename = f"HBBA_Triage_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+                    full_file_path = os.path.join(folder_path, filename)
+                    with open(full_file_path, "w", encoding="utf-8") as f:
+                        f.write(full_report_text)
+
+                    st.download_button("📥 Скачать отчет (.txt)", data=full_report_text, file_name=filename, mime="text/plain")
 
         else:
             st.warning("Пожалуйста, выберите хотя бы одну зону на теле, введите описание или прикрепите файл.")

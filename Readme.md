@@ -1,1 +1,1 @@
-// cd .venv/Scripts/active - the statement to run virtual environment
+// cd .venv/Scripts/activate - the statement to run virtual environment
